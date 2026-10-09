@@ -45,16 +45,35 @@ jobs:
           set -euo pipefail
           xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
             -scheme MotionValidation \
+            -sdk iphonesimulator \
             -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
             -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/motion-build.xcresult" \
             CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee "$RUNNER_TEMP/motion-build.log"
+      - name: Check the actual simulator app bundle
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, plistlib
+          products = pathlib.Path(os.environ['RUNNER_TEMP']) / 'Motion24DerivedData/Build/Products'
+          app = products / 'Debug-iphonesimulator/MotionValidation.app'
+          info = app / 'Info.plist'
+          if not info.exists():
+              print('::error::Expected simulator app Info.plist is absent; actual product plist files: ' + ', '.join(str(p) for p in products.rglob('Info.plist')))
+              raise SystemExit(1)
+          with info.open('rb') as source:
+              properties = plistlib.load(source)
+          print('::notice::Actual simulator app bundle: ' + str(properties))
+          assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
+          assert (app / properties['CFBundleExecutable']).is_file()
+          PY
       - name: Run SceneKit persistence tests
         shell: bash
         run: |
           set -euo pipefail
           xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
             -scheme MotionValidation \
+            -sdk iphonesimulator \
             -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
             -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/motion-tests.xcresult" \
