@@ -84,6 +84,8 @@ jobs:
               for line in path.read_text(errors='replace').splitlines():
                   if 'error:' in line or ('Test Case' in line and 'failed' in line):
                       kind = 'error'
+                  elif any(term in line for term in ('Testing failed:', 'Early unexpected exit', 'Failed to', 'could not be loaded', 'failed to start', 'test runner failed')):
+                      kind = 'error'
                   elif re.search(r'Executed \d+ tests?', line) or '** BUILD' in line or '** TEST' in line or 'MACOS SIMULATOR AD-HOC SIGNING VERIFIED' in line:
                       kind = 'notice'
                   else:
@@ -93,6 +95,31 @@ jobs:
                   seen.add(line)
                   escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::' + kind + '::' + escaped)
+          import json
+          for name in ('motion-build.xcresult', 'motion-tests.xcresult'):
+              path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
+              if not path.exists():
+                  continue
+              result = subprocess.run(['xcrun', 'xcresulttool', 'get', '--path', str(path), '--format', 'json'], capture_output=True, text=True)
+              if result.returncode:
+                  continue
+              document = json.loads(result.stdout)
+              def inspect(value):
+                  if isinstance(value, dict):
+                      for key in ('errorSummaries', 'testFailureSummaries'):
+                          for issue in value.get(key, {}).get('_values', []):
+                              message = issue.get('message', {}).get('_value', '')
+                              test = issue.get('testCaseName', {}).get('_value', '')
+                              text = (test + ': ' if test else '') + message
+                              if text and text not in seen:
+                                  seen.add(text)
+                                  print('::error::' + text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+                      for key, child in value.items():
+                          inspect(child)
+                  elif isinstance(value, list):
+                      for child in value:
+                          inspect(child)
+              inspect(document)
           PY
       - name: Upload actual Apple results
         if: always()
