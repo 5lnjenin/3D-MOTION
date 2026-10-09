@@ -102,7 +102,7 @@ jobs:
                   continue
               log_text = path.read_text(errors='replace')
               if name in ('motion-build.log', 'motion-tests.log') and 'SUCCEEDED **' not in log_text:
-                  tail = 'Actual Apple log tail (' + name + '):\n' + '\n'.join(log_text.splitlines()[-100:])
+                  tail = 'Actual Apple log tail (' + name + '):\n' + log_text[-3500:]
                   print('::error::' + tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               for line in log_text.splitlines():
                   if 'error:' in line or ('Test Case' in line and 'failed' in line):
