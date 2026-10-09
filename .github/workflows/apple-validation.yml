@@ -1,0 +1,72 @@
+name: Apple validation
+
+on:
+  push:
+    paths:
+      - '24.zip'
+      - '.github/workflows/apple-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-14
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare Apple project and select iPad simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q 24.zip -d "$RUNNER_TEMP/Motion24"
+          export MOTION_PROJECT_FOLDER="$RUNNER_TEMP/Motion24/3DMOTION24.swiftpm"
+          printf 'MOTION_PROJECT_FOLDER=%s\n' "$MOTION_PROJECT_FOLDER" >> "$GITHUB_ENV"
+          python3 "$MOTION_PROJECT_FOLDER/Tests/create_apple_project.py"
+          xcodebuild -version
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/motion-simulators.json"
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ['RUNNER_TEMP'] + '/motion-simulators.json') as source:
+              devices = json.load(source)['devices']
+          candidates = [device for runtime, items in devices.items() if '.iOS-' in runtime
+                        for device in items if device.get('isAvailable') and device['name'].startswith('iPad')]
+          if not candidates:
+              raise SystemExit('No available iPad simulator on this runner')
+          selected = candidates[0]
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('MOTION_IOS_UDID=' + selected['udid'] + '\n')
+          print('Selected simulator:', selected['name'], selected['udid'])
+          PY
+      - name: Build the full app and hosted XCTest target
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
+            -scheme MotionValidation \
+            -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/motion-build.xcresult" \
+            CODE_SIGNING_ALLOWED=NO build-for-testing 2>&1 | tee "$RUNNER_TEMP/motion-build.log"
+      - name: Run SceneKit persistence tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
+            -scheme MotionValidation \
+            -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/motion-tests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-tests.log"
+      - name: Upload actual Apple results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apple-validation-results
+          path: |
+            ${{ runner.temp }}/motion-build.log
+            ${{ runner.temp }}/motion-tests.log
+            ${{ runner.temp }}/motion-build.xcresult
+            ${{ runner.temp }}/motion-tests.xcresult
+          if-no-files-found: warn
