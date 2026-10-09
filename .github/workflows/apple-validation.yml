@@ -144,6 +144,43 @@ jobs:
                       for child in value:
                           inspect(child)
               inspect(document)
+              references = []
+              def diagnostic_ids(value):
+                  if isinstance(value, dict):
+                      if 'diagnosticsRef' in value:
+                          identifier = value['diagnosticsRef'].get('id', {}).get('_value')
+                          if identifier and identifier not in references:
+                              references.append(identifier)
+                      for child in value.values():
+                          diagnostic_ids(child)
+                  elif isinstance(value, list):
+                      for child in value:
+                          diagnostic_ids(child)
+              diagnostic_ids(document)
+              for index, identifier in enumerate(references):
+                  directory = pathlib.Path(os.environ['RUNNER_TEMP']) / ('motion-diagnostics-' + str(index))
+                  exported = subprocess.run(['xcrun', 'xcresulttool', 'export', '--path', str(path), '--id', identifier,
+                                             '--type', 'directory', '--output-path', str(directory)], capture_output=True, text=True)
+                  if exported.returncode:
+                      continue
+                  for report in list(directory.rglob('*.crash')) + list(directory.rglob('*.ips')):
+                      if 'MotionValidation' not in report.name:
+                          continue
+                      text = report.read_text(errors='replace')
+                      try:
+                          decoder = json.JSONDecoder()
+                          header, end = decoder.raw_decode(text)
+                          details, _ = decoder.raw_decode(text[end:].lstrip())
+                          frames = []
+                          for thread in details.get('threads', []):
+                              if thread.get('triggered'):
+                                  frames = [frame.get('symbol', str(frame)) for frame in thread.get('frames', [])[:18]]
+                          excerpt = json.dumps(details.get('exception', {})) + '\n' + '\n'.join(frames)
+                      except (ValueError, TypeError):
+                          lines = text.splitlines()
+                          position = next((i for i, line in enumerate(lines) if 'Crashed:' in line), 0)
+                          excerpt = '\n'.join(lines[:12] + lines[position:position + 28])
+                      print('::error::Actual crash ' + report.name + ': ' + excerpt[:3400].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           PY
       - name: Upload actual Apple results
         if: always()
