@@ -59,21 +59,32 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/motion-tests.xcresult" \
             CODE_SIGNING_ALLOWED=NO test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-tests.log"
+      - name: Verify ad-hoc signing of the simulator app on macOS
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOTION_SIM_APP="$RUNNER_TEMP/Motion24DerivedData/Build/Products/Debug-iphonesimulator/MotionValidation.app"
+          {
+            codesign --force --deep --sign - --timestamp=none "$MOTION_SIM_APP"
+            codesign --verify --deep --strict --verbose=2 "$MOTION_SIM_APP"
+            echo 'MACOS SIMULATOR AD-HOC SIGNING VERIFIED; iPad Playgrounds signing is a separate check.'
+          } 2>&1 | tee "$RUNNER_TEMP/motion-signing.log"
       - name: Publish actual compiler and XCTest diagnostics
         if: always()
         shell: bash
         run: |
           python3 - <<'PY'
-          import os, pathlib, re
+          import os, pathlib, re, subprocess
+          print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
           seen = set()
-          for name in ('motion-build.log', 'motion-tests.log'):
+          for name in ('motion-build.log', 'motion-tests.log', 'motion-signing.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
               for line in path.read_text(errors='replace').splitlines():
                   if 'error:' in line or ('Test Case' in line and 'failed' in line):
                       kind = 'error'
-                  elif re.search(r'Executed \d+ tests?', line) or '** BUILD' in line or '** TEST' in line:
+                  elif re.search(r'Executed \d+ tests?', line) or '** BUILD' in line or '** TEST' in line or 'MACOS SIMULATOR AD-HOC SIGNING VERIFIED' in line:
                       kind = 'notice'
                   else:
                       continue
@@ -91,6 +102,7 @@ jobs:
           path: |
             ${{ runner.temp }}/motion-build.log
             ${{ runner.temp }}/motion-tests.log
+            ${{ runner.temp }}/motion-signing.log
             ${{ runner.temp }}/motion-build.xcresult
             ${{ runner.temp }}/motion-tests.xcresult
           if-no-files-found: warn
