@@ -67,6 +67,17 @@ jobs:
           assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
           assert (app / properties['CFBundleExecutable']).is_file()
           PY
+      - name: Check HDR snapshot and video color before the full export suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
+            -scheme MotionValidation -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/motion-hdr-tests.xcresult" \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testSnapshotPreservesLitTextureAndEditorState \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-hdr-tests.log"
       - name: Run SceneKit persistence tests
         shell: bash
         run: |
@@ -97,11 +108,11 @@ jobs:
           print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
           # GitHub limits annotation counts per step. Group all export rows
           # into one notice so every resolution/FPS result stays reviewable.
-          evidence_path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'motion-tests.log'
-          if evidence_path.exists():
-              evidence = evidence_path.read_text(errors='replace')
+          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log')]
+          if any(path.exists() for path in evidence_paths):
+              evidence = '\n'.join(path.read_text(errors='replace') for path in evidence_paths if path.exists())
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
-              filters = list(dict.fromkeys(re.findall(r'(?:EXPORT_(?:FILTER|STRENGTH)|PBR_EXPORT|PHOTOS_COPY|LONG_EXPORT|HDR_COLOR)_PASS[^\n]+', evidence)))
+              filters = list(dict.fromkeys(re.findall(r'(?:EXPORT_(?:FILTER|STRENGTH)|PBR_EXPORT|PHOTOS_COPY|LONG_EXPORT|HDR_COLOR|SINGLE_FRAME)_PASS[^\n]+', evidence)))
               totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
               summary = '\n'.join(['Actual export and XCTest evidence:'] + totals + rows + filters)
               print('::notice::' + summary.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
@@ -109,12 +120,12 @@ jobs:
               if failures:
                   print('::error::' + ('All test failures:\n' + '\n'.join(failures)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
-          for name in ('motion-build.log', 'motion-tests.log', 'motion-signing.log'):
+          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-signing.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
               log_text = path.read_text(errors='replace')
-              if name in ('motion-build.log', 'motion-tests.log') and 'SUCCEEDED **' not in log_text:
+              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log') and 'SUCCEEDED **' not in log_text:
                   tail = 'Actual Apple log tail (' + name + '):\n' + log_text[-3500:]
                   print('::error::' + tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               for line in log_text.splitlines():
@@ -132,7 +143,7 @@ jobs:
                   escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::' + kind + '::' + escaped)
           import json
-          for name in ('motion-build.xcresult', 'motion-tests.xcresult'):
+          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
@@ -203,7 +214,9 @@ jobs:
           path: |
             ${{ runner.temp }}/motion-build.log
             ${{ runner.temp }}/motion-tests.log
+            ${{ runner.temp }}/motion-hdr-tests.log
             ${{ runner.temp }}/motion-signing.log
             ${{ runner.temp }}/motion-build.xcresult
             ${{ runner.temp }}/motion-tests.xcresult
+            ${{ runner.temp }}/motion-hdr-tests.xcresult
           if-no-files-found: warn
