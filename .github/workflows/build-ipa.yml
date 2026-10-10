@@ -1,0 +1,111 @@
+name: Build 3D MOTION IPA for SideStore
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '24.zip'
+      - '.github/workflows/build-ipa.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare the device app project
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q 24.zip -d "$RUNNER_TEMP/MotionIPA"
+          MOTION_IPA_PROJECT="$RUNNER_TEMP/MotionIPA/3DMOTION24.swiftpm"
+          printf 'MOTION_IPA_PROJECT=%s\n' "$MOTION_IPA_PROJECT" >> "$GITHUB_ENV"
+          python3 "$MOTION_IPA_PROJECT/Tests/create_apple_project.py" --distribution
+          xcodebuild -version
+      - name: Build the unsigned iPhone and iPad app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_IPA_PROJECT/Tests/3DMotion.xcodeproj" \
+            -scheme 3DMOTION -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/MotionIPAProducts" \
+            -resultBundlePath "$RUNNER_TEMP/motion-ipa-build.xcresult" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY='' \
+            build 2>&1 | tee "$RUNNER_TEMP/motion-ipa-build.log"
+      - name: Verify document registration and package the IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          MOTION_DEVICE_APP="$RUNNER_TEMP/MotionIPAProducts/Build/Products/Release-iphoneos/3DMOTION.app"
+          export MOTION_DEVICE_APP
+          python3 - <<'PY'
+          import os, pathlib, plistlib, subprocess, shutil
+          app = pathlib.Path(os.environ['MOTION_DEVICE_APP'])
+          info = plistlib.loads((app / 'Info.plist').read_bytes())
+          assert info['CFBundleIdentifier'] == 'app.5ln.studio'
+          assert info['CFBundleDisplayName'] == '3D MOTION'
+          assert info['CFBundleShortVersionString'] == '24'
+          document = info['CFBundleDocumentTypes'][0]
+          assert document['LSItemContentTypes'] == ['app.5ln.studio.project']
+          assert document['CFBundleTypeIconFiles'] == ['ProjectFileIcon.png']
+          declaration = info['UTExportedTypeDeclarations'][0]
+          assert declaration['UTTypeTagSpecification']['public.filename-extension'] == ['3dmotion']
+          assert (app / 'ProjectFileIcon.png').is_file()
+          assert not (app / 'Resources').exists()
+          executable = app / info['CFBundleExecutable']
+          architectures = subprocess.check_output(['lipo', '-archs', str(executable)], text=True).strip()
+          assert 'arm64' in architectures.split()
+          payload = pathlib.Path(os.environ['RUNNER_TEMP']) / 'MotionIPAPackage/Payload'
+          payload.mkdir(parents=True)
+          shutil.copytree(app, payload / app.name)
+          print('::notice::Device app verified: arm64; real app identifier; .3dmotion registration; original document PNG included; no reserved Resources directory.')
+          PY
+          ditto -c -k --keepParent "$RUNNER_TEMP/MotionIPAPackage/Payload" "$GITHUB_WORKSPACE/3DMOTION-24-unsigned.ipa"
+          python3 - <<'PY'
+          import zipfile
+          with zipfile.ZipFile('3DMOTION-24-unsigned.ipa') as archive:
+              assert archive.testzip() is None
+              assert 'Payload/3DMOTION.app/Info.plist' in archive.namelist()
+              assert 'Payload/3DMOTION.app/ProjectFileIcon.png' in archive.namelist()
+          print('::notice::IPA archive verified. It is unsigned; SideStore must sign it locally before installation. No signing credentials were used.')
+          PY
+          shasum -a 256 3DMOTION-24-unsigned.ipa > 3DMOTION-24-unsigned.ipa.sha256
+      - name: Publish actual device-build diagnostics
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import pathlib, os, subprocess
+          print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'motion-ipa-build.log'
+          if path.exists():
+              text = path.read_text(errors='replace')
+              for line in text.splitlines():
+                  if 'error:' in line or '** BUILD' in line:
+                      kind = 'error' if 'error:' in line or 'FAILED' in line else 'notice'
+                      print('::' + kind + '::' + line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+              if '** BUILD SUCCEEDED **' not in text:
+                  print('::error::Actual device build tail: ' + text[-3500:].replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+          PY
+      - name: Upload IPA for local SideStore signing
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3DMOTION-24-unsigned-IPA
+          path: |
+            3DMOTION-24-unsigned.ipa
+            3DMOTION-24-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload device build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: device-build-results
+          path: |
+            ${{ runner.temp }}/motion-ipa-build.log
+            ${{ runner.temp }}/motion-ipa-build.xcresult
+          if-no-files-found: warn
