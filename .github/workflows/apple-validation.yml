@@ -109,7 +109,7 @@ jobs:
                       kind = 'error'
                   elif any(term in line for term in ('Testing failed:', 'Early unexpected exit', 'Failed to', 'could not be loaded', 'failed to start', 'test runner failed')):
                       kind = 'error'
-                  elif re.search(r'Executed \d+ tests?', line) or '** BUILD' in line or '** TEST' in line or 'MACOS SIMULATOR AD-HOC SIGNING VERIFIED' in line:
+                  elif re.search(r'Executed \d+ tests?', line) or '** BUILD' in line or '** TEST' in line or 'MACOS SIMULATOR AD-HOC SIGNING VERIFIED' in line or 'EXPORT_MATRIX_PASS' in line or 'EXPORT_FILTER_PASS' in line:
                       kind = 'notice'
                   else:
                       continue
