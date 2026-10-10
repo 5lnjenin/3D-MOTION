@@ -7,7 +7,7 @@ IPA مبني من نفس مصادر مشروع Swift Playgrounds الكامل، 
 ## تنزيل النسخة المبنية
 
 1. سجّل الدخول إلى GitHub وافتح
-   [تشغيل بناء IPA الناجح](https://github.com/5lnjenin/3D-MOTION/actions/runs/38081393224).
+   [تشغيل بناء IPA الناجح](https://github.com/5lnjenin/3D-MOTION/actions/runs/38085168243).
 2. في آخر صفحة التشغيل، تحت **Artifacts**، نزّل
    **3DMOTION-24-unsigned-IPA**. ملف التنزيل من GitHub عبارة عن ZIP.
 3. فك ZIP لتجد `3DMOTION-24-unsigned.ipa` وملف SHA256 مرافقًا.
@@ -46,3 +46,10 @@ IPA مبني من نفس مصادر مشروع Swift Playgrounds الكامل، 
 نجح بناء IPA على Xcode 15.4 لـarm64 والتحقق من بنيته. لم تُنفَّذ هنا عملية
 توقيع SideStore أو تثبيت الجهاز أو ترقية بياناته؛ سجل الاختبارات في
 `TESTING.md` يفصل نتائج المحاكي عن اختبارات الجهاز المطلوبة.
+
+## حد الحساب المجاني
+
+إذا ظهرت رسالة `maximum number of installed apps using a free developer profile`
+فهي تعني بلوغ حد التطبيقات الثلاثة، ومنها SideStore. صدّر بيانات التطبيق
+الذي تختار إزالته قبل إفساح خانة، ثم أعد استيراد IPA. استخدم نفس هوية التطبيق
+عند تحديث 3D MOTION للحفاظ على بياناته؛ لا تحذف النسخة القديمة قبل تصدير مشاريعها.
