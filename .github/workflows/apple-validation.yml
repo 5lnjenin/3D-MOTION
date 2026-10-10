@@ -101,7 +101,7 @@ jobs:
           if evidence_path.exists():
               evidence = evidence_path.read_text(errors='replace')
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
-              filters = list(dict.fromkeys(re.findall(r'EXPORT_FILTER_PASS[^\n]+', evidence)))
+              filters = list(dict.fromkeys(re.findall(r'EXPORT_(?:FILTER|STRENGTH)_PASS[^\n]+', evidence)))
               totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
               summary = '\n'.join(['Actual export and XCTest evidence:'] + totals + rows + filters)
               print('::notice::' + summary.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
