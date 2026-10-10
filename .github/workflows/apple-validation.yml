@@ -95,6 +95,16 @@ jobs:
           python3 - <<'PY'
           import os, pathlib, re, subprocess
           print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
+          # GitHub limits annotation counts per step. Group all export rows
+          # into one notice so every resolution/FPS result stays reviewable.
+          evidence_path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'motion-tests.log'
+          if evidence_path.exists():
+              evidence = evidence_path.read_text(errors='replace')
+              rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
+              filters = list(dict.fromkeys(re.findall(r'EXPORT_FILTER_PASS[^\n]+', evidence)))
+              totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
+              summary = '\n'.join(['Actual export and XCTest evidence:'] + totals + rows + filters)
+              print('::notice::' + summary.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
           for name in ('motion-build.log', 'motion-tests.log', 'motion-signing.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
