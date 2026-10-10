@@ -7,7 +7,7 @@ IPA مبني من نفس مصادر مشروع Swift Playgrounds الكامل، 
 ## تنزيل النسخة المبنية
 
 1. سجّل الدخول إلى GitHub وافتح
-   [تشغيل بناء IPA الناجح](https://github.com/5lnjenin/3D-MOTION/actions/runs/38085168243).
+   [تشغيل بناء IPA الناجح](https://github.com/5lnjenin/3D-MOTION/actions/runs/38088293900).
 2. في آخر صفحة التشغيل، تحت **Artifacts**، نزّل
    **3DMOTION-24-unsigned-IPA**. ملف التنزيل من GitHub عبارة عن ZIP.
 3. فك ZIP لتجد `3DMOTION-24-unsigned.ipa` وملف SHA256 مرافقًا.
