@@ -105,6 +105,9 @@ jobs:
               totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
               summary = '\n'.join(['Actual export and XCTest evidence:'] + totals + rows + filters)
               print('::notice::' + summary.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
+              failures = list(dict.fromkeys(line for line in evidence.splitlines() if 'error:' in line or ('Test Case' in line and 'failed' in line)))
+              if failures:
+                  print('::error::' + ('All test failures:\n' + '\n'.join(failures)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
           for name in ('motion-build.log', 'motion-tests.log', 'motion-signing.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
