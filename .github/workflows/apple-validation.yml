@@ -139,7 +139,7 @@ jobs:
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
               filters = list(dict.fromkeys(re.findall(r'(?:EXPORT_(?:FILTER|STRENGTH)|PBR_EXPORT|PHOTOS_COPY|LONG_EXPORT|HDR_COLOR|SINGLE_FRAME)_PASS[^\n]+', evidence)))
               totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
-              movie_rows = list(dict.fromkeys(re.findall(r'(?:(?:VIDEO_REPLAY|VIDEO_REOPEN|MEDIA_EXPORT|MEDIA_CANCEL|MEDIA_ASPECT|SELECTION_GEOMETRY|CAMERA_SYMBOL)_PASS|MEDIA_EXPORT_CHECK)[^\n]+', evidence)))
+              movie_rows = list(dict.fromkeys(re.findall(r'(?:(?:VIDEO_REPLAY|VIDEO_REOPEN|MEDIA_EXPORT|MEDIA_CANCEL|MEDIA_ASPECT|SELECTION_GEOMETRY|CAMERA_SYMBOL)_PASS|MEDIA_EXPORT_CHECK|VIDEO_TEST_STEP)[^\n]+', evidence)))
               groups = [('Actual XCTest totals:', totals), ('Actual export matrix:', rows),
                         ('Actual filter evidence:', [r for r in filters if r.startswith('EXPORT_')]),
                         ('Actual PBR export colors:', [r for r in filters if r.startswith('PBR_')]),
