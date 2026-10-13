@@ -74,7 +74,19 @@ jobs:
           assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
           assert (app / properties['CFBundleExecutable']).is_file()
           PY
+      - name: Check file-picker movie import in the mounted editor
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
+            -scheme MotionValidation -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/motion-live-import-tests.xcresult" \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testFilePickerMovieImportAutoplaysInMountedEditorAndSurvivesSecondImport \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-live-import-tests.log"
       - name: Check HDR snapshot and video color before the full export suite
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -104,6 +116,7 @@ jobs:
             -only-testing:MotionValidationTests/ScenePersistenceTests/testCameraSymbolHasExplicitMaterialsAndRigidPoseWithoutChangingCamera \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-media-tests.log"
       - name: Run SceneKit persistence tests
+        if: github.ref == 'refs/heads/main'
         shell: bash
         run: |
           set -euo pipefail
@@ -133,13 +146,13 @@ jobs:
           print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
           # GitHub limits annotation counts per step. Group all export rows
           # into one notice so every resolution/FPS result stays reviewable.
-          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log')]
+          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log')]
           if any(path.exists() for path in evidence_paths):
               evidence = '\n'.join(path.read_text(errors='replace') for path in evidence_paths if path.exists())
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
               filters = list(dict.fromkeys(re.findall(r'(?:EXPORT_(?:FILTER|STRENGTH)|PBR_EXPORT|PHOTOS_COPY|LONG_EXPORT|HDR_COLOR|SINGLE_FRAME)_PASS[^\n]+', evidence)))
               totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
-              movie_rows = list(dict.fromkeys(re.findall(r'(?:(?:VIDEO_REPLAY|VIDEO_REOPEN|MEDIA_EXPORT|MEDIA_CANCEL|MEDIA_ASPECT|SELECTION_GEOMETRY|CAMERA_SYMBOL)_PASS|MEDIA_EXPORT_CHECK|VIDEO_TEST_STEP)[^\n]+', evidence)))
+              movie_rows = list(dict.fromkeys(re.findall(r'(?:(?:VIDEO_REPLAY|VIDEO_REOPEN|MEDIA_EXPORT|MEDIA_CANCEL|MEDIA_ASPECT|SELECTION_GEOMETRY|CAMERA_SYMBOL|LIVE_IMPORT)_PASS|MEDIA_EXPORT_CHECK|VIDEO_TEST_STEP|LIVE_IMPORT_STEP|LIVE_IMPORT_CHECK)[^\n]+', evidence)))
               groups = [('Actual XCTest totals:', totals), ('Actual export matrix:', rows),
                         ('Actual filter evidence:', [r for r in filters if r.startswith('EXPORT_')]),
                         ('Actual PBR export colors:', [r for r in filters if r.startswith('PBR_')]),
@@ -155,12 +168,12 @@ jobs:
               if failures:
                   print('::error::' + ('All test failures:\n' + '\n'.join(failures)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
-          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-signing.log'):
+          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-signing.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
               log_text = path.read_text(errors='replace')
-              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log') and 'SUCCEEDED **' not in log_text:
+              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log') and 'SUCCEEDED **' not in log_text:
                   tail = 'Actual Apple log tail (' + name + '):\n' + log_text[-3500:]
                   print('::error::' + tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               for line in log_text.splitlines():
@@ -178,7 +191,7 @@ jobs:
                   escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::' + kind + '::' + escaped)
           import json
-          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult'):
+          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
@@ -251,9 +264,11 @@ jobs:
             ${{ runner.temp }}/motion-tests.log
             ${{ runner.temp }}/motion-hdr-tests.log
             ${{ runner.temp }}/motion-media-tests.log
+            ${{ runner.temp }}/motion-live-import-tests.log
             ${{ runner.temp }}/motion-signing.log
             ${{ runner.temp }}/motion-build.xcresult
             ${{ runner.temp }}/motion-tests.xcresult
             ${{ runner.temp }}/motion-hdr-tests.xcresult
             ${{ runner.temp }}/motion-media-tests.xcresult
+            ${{ runner.temp }}/motion-live-import-tests.xcresult
           if-no-files-found: warn
