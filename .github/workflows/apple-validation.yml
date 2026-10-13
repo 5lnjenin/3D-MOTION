@@ -84,6 +84,10 @@ jobs:
             -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
             -resultBundlePath "$RUNNER_TEMP/motion-live-import-tests.xcresult" \
             -only-testing:MotionValidationTests/ScenePersistenceTests/testFilePickerMovieImportAutoplaysInMountedEditorAndSurvivesSecondImport \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testMovieSeekCompletionRechecksStallingModeBeforeHostClockStart \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testFilePickerInvalidMovieShowsErrorAndKeepsHealthyScene \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testInterruptedMovieImportIsReportedAfterFreshStoreWithoutDeletingProjects \
+            -only-testing:MotionValidationTests/VideoImportSafetyTests \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-live-import-tests.log"
       - name: Check HDR snapshot and video color before the full export suite
         if: github.ref == 'refs/heads/main'
@@ -152,7 +156,7 @@ jobs:
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
               filters = list(dict.fromkeys(re.findall(r'(?:EXPORT_(?:FILTER|STRENGTH)|PBR_EXPORT|PHOTOS_COPY|LONG_EXPORT|HDR_COLOR|SINGLE_FRAME)_PASS[^\n]+', evidence)))
               totals = list(dict.fromkeys(re.findall(r'Executed \d+ tests[^\n]+', evidence)))
-              movie_rows = list(dict.fromkeys(re.findall(r'(?:(?:VIDEO_REPLAY|VIDEO_REOPEN|MEDIA_EXPORT|MEDIA_CANCEL|MEDIA_ASPECT|SELECTION_GEOMETRY|CAMERA_SYMBOL|LIVE_IMPORT)_PASS|MEDIA_EXPORT_CHECK|VIDEO_TEST_STEP|LIVE_IMPORT_STEP|LIVE_IMPORT_CHECK)[^\n]+', evidence)))
+              movie_rows = list(dict.fromkeys(re.findall(r'(?:(?:VIDEO_REPLAY|VIDEO_REOPEN|MEDIA_EXPORT|MEDIA_CANCEL|MEDIA_ASPECT|SELECTION_GEOMETRY|CAMERA_SYMBOL|LIVE_IMPORT|IMPORT_START|IMPORT_ERROR|IMPORT_RECOVERY)_PASS|MEDIA_EXPORT_CHECK|VIDEO_TEST_STEP|LIVE_IMPORT_STEP|LIVE_IMPORT_CHECK)[^\n]+', evidence)))
               groups = [('Actual XCTest totals:', totals), ('Actual export matrix:', rows),
                         ('Actual filter evidence:', [r for r in filters if r.startswith('EXPORT_')]),
                         ('Actual PBR export colors:', [r for r in filters if r.startswith('PBR_')]),
