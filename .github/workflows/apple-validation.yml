@@ -13,7 +13,7 @@ permissions:
 jobs:
   validate:
     runs-on: macos-15
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - name: Select Xcode 16.4 for the supported Swift runtime
@@ -77,6 +77,25 @@ jobs:
           assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
           assert (app / properties['CFBundleExecutable']).is_file()
           PY
+      - name: Check imported movie audio and current audit regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
+            -scheme MotionValidation -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/motion-audit-tests.xcresult" \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testImportedMovieAudioExportsOnceWithMasterVolume \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testImportedMovieTrimDelaySpeedLoopAndSeparateAudioMix \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testMutedAndHiddenMoviesDoNotProduceExportAudio \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testMovieClipSettingsSurviveTransferAndUndoRedo \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testAnimationLayerEditsUndoRedoRestoreIndependentPlayerState \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testProjectSwitchFailureKeepsWorkspaceAndAutosave \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testSameNameSaveAsAndImportedProjectNeverReplaceExistingIdentity \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testProjectRenameDuplicateAndDeleteErrorsPreserveOtherProjects \
+            -only-testing:MotionValidationTests/ScenePersistenceTests/testFlipNormalsReversesWindingWithoutChangingVerticesOrMaterials \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-audit-tests.log"
       - name: Check file-picker movie import in the mounted editor
         shell: bash
         run: |
@@ -93,7 +112,7 @@ jobs:
             -only-testing:MotionValidationTests/VideoImportSafetyTests \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-live-import-tests.log"
       - name: Check HDR snapshot and video color before the full export suite
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/video-import-crash'
         shell: bash
         run: |
           set -euo pipefail
@@ -123,7 +142,7 @@ jobs:
             -only-testing:MotionValidationTests/ScenePersistenceTests/testCameraSymbolHasExplicitMaterialsAndRigidPoseWithoutChangingCamera \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- test-without-building 2>&1 | tee "$RUNNER_TEMP/motion-media-tests.log"
       - name: Run SceneKit persistence tests
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/fix/video-import-crash'
         shell: bash
         run: |
           set -euo pipefail
@@ -153,7 +172,7 @@ jobs:
           print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
           # GitHub limits annotation counts per step. Group all export rows
           # into one notice so every resolution/FPS result stays reviewable.
-          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log')]
+          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log')]
           if any(path.exists() for path in evidence_paths):
               evidence = '\n'.join(path.read_text(errors='replace') for path in evidence_paths if path.exists())
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
@@ -175,12 +194,12 @@ jobs:
               if failures:
                   print('::error::' + ('All test failures:\n' + '\n'.join(failures)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
-          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-signing.log'):
+          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-signing.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
               log_text = path.read_text(errors='replace')
-              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log') and 'SUCCEEDED **' not in log_text:
+              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log') and 'SUCCEEDED **' not in log_text:
                   tail = 'Actual Apple log tail (' + name + '):\n' + log_text[-3500:]
                   print('::error::' + tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               for line in log_text.splitlines():
@@ -198,7 +217,7 @@ jobs:
                   escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::' + kind + '::' + escaped)
           import json
-          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult'):
+          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult', 'motion-audit-tests.xcresult'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
@@ -272,10 +291,12 @@ jobs:
             ${{ runner.temp }}/motion-hdr-tests.log
             ${{ runner.temp }}/motion-media-tests.log
             ${{ runner.temp }}/motion-live-import-tests.log
+            ${{ runner.temp }}/motion-audit-tests.log
             ${{ runner.temp }}/motion-signing.log
             ${{ runner.temp }}/motion-build.xcresult
             ${{ runner.temp }}/motion-tests.xcresult
             ${{ runner.temp }}/motion-hdr-tests.xcresult
             ${{ runner.temp }}/motion-media-tests.xcresult
             ${{ runner.temp }}/motion-live-import-tests.xcresult
+            ${{ runner.temp }}/motion-audit-tests.xcresult
           if-no-files-found: warn
