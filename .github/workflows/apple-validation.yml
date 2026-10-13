@@ -46,6 +46,9 @@ jobs:
               target.write('MOTION_IOS_UDID=' + selected['udid'] + '\n')
           print('Selected simulator:', selected['name'], selected['udid'])
           PY
+      - name: Boot the selected iPad before cold media tests
+        shell: bash
+        run: xcrun simctl bootstatus "$MOTION_IOS_UDID" -b
       - name: Build the full app and hosted XCTest target
         shell: bash
         run: |
