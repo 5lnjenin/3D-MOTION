@@ -182,7 +182,7 @@ jobs:
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
-              result = subprocess.run(['xcrun', 'xcresulttool', 'get', '--path', str(path), '--format', 'json'], capture_output=True, text=True)
+              result = subprocess.run(['xcrun', 'xcresulttool', 'get', 'object', '--legacy', '--path', str(path), '--format', 'json'], capture_output=True, text=True)
               if result.returncode:
                   print('::warning::xcresulttool: ' + result.stderr.strip().replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
                   continue
