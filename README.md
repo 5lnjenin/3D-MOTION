@@ -22,7 +22,7 @@
 - نجحت استعادة سجل المرحلة بعد نسخة جديدة ومنع خلط الإلغاء والفشل مع الانقطاع.
 - نجح فحص صياغة 43 ملف Swift في الجذر وملفي XCTest؛ هذا ليس بناء iOS.
 - أصبحت المجموعة المسجلة 67 حالة Apple، مع نافذة عرض فعلية وفيديوين وتشغيل تلقائي.
-- تحقق Apple وبناء IPA الحاليان: IMPORT_BUILD_LINKS_PENDING
+- تحقق Apple وبناء IPA الحاليان: [تحقق Apple](https://github.com/5lnjenin/3D-MOTION/actions/runs/38436080938) · [بناء IPA](https://github.com/5lnjenin/3D-MOTION/actions/runs/38436080895). كلاهما Queued عند الفحص في 13 أكتوبر 2026، 17:17 UTC؛ لا توجد نتيجة بناء iOS بعد.
 - تشغيل Swift Playgrounds على iPad وملف الفيديو الخاص بالمستخدم لم يُختبرا هنا.
 
 [تقرير التعديلات السابقة](CHANGES_MEDIA_AR.md) · [التقرير الكامل للنواقص والخطة](AUDIT_AR.md).
