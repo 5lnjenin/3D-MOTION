@@ -30,6 +30,7 @@ jobs:
           unzip -q 24.zip -d "$RUNNER_TEMP/Motion24"
           export MOTION_PROJECT_FOLDER="$RUNNER_TEMP/Motion24/3DMOTION24.swiftpm"
           printf 'MOTION_PROJECT_FOLDER=%s\n' "$MOTION_PROJECT_FOLDER" >> "$GITHUB_ENV"
+          python3 "$MOTION_PROJECT_FOLDER/Tests/check_app_target.py"
           python3 "$MOTION_PROJECT_FOLDER/Tests/create_apple_project.py"
           xcodebuild -version
           xcrun simctl list devices available --json > "$RUNNER_TEMP/motion-simulators.json"

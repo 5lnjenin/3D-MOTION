@@ -30,6 +30,7 @@ jobs:
           unzip -q 24.zip -d "$RUNNER_TEMP/MotionIPA"
           MOTION_IPA_PROJECT="$RUNNER_TEMP/MotionIPA/3DMOTION24.swiftpm"
           printf 'MOTION_IPA_PROJECT=%s\n' "$MOTION_IPA_PROJECT" >> "$GITHUB_ENV"
+          python3 "$MOTION_IPA_PROJECT/Tests/check_app_target.py"
           python3 "$MOTION_IPA_PROJECT/Tests/create_apple_project.py" --distribution
           xcodebuild -version
       - name: Build the unsigned iPhone and iPad app
