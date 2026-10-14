@@ -214,7 +214,7 @@ jobs:
           print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
           # GitHub limits annotation counts per step. Group all export rows
           # into one notice so every resolution/FPS result stays reviewable.
-          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-workshop-tests.log')]
+          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-workshop-tests.log', 'motion-viewport-tests.log')]
           if any(path.exists() for path in evidence_paths):
               evidence = '\n'.join(path.read_text(errors='replace') for path in evidence_paths if path.exists())
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
@@ -236,12 +236,12 @@ jobs:
               if failures:
                   print('::error::' + ('All test failures:\n' + '\n'.join(failures)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
-          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-signing.log', 'motion-workshop-tests.log'):
+          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-signing.log', 'motion-workshop-tests.log', 'motion-viewport-tests.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
               log_text = path.read_text(errors='replace')
-              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-workshop-tests.log') and 'SUCCEEDED **' not in log_text:
+              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-workshop-tests.log', 'motion-viewport-tests.log') and 'SUCCEEDED **' not in log_text:
                   tail = 'Actual Apple log tail (' + name + '):\n' + log_text[-3500:]
                   print('::error::' + tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               for line in log_text.splitlines():
@@ -259,7 +259,7 @@ jobs:
                   escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::' + kind + '::' + escaped)
           import json
-          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult', 'motion-audit-tests.xcresult', 'motion-workshop-tests.xcresult'):
+          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult', 'motion-audit-tests.xcresult', 'motion-workshop-tests.xcresult', 'motion-viewport-tests.xcresult'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
