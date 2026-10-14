@@ -55,7 +55,7 @@ jobs:
           info = plistlib.loads((app / 'Info.plist').read_bytes())
           assert info['CFBundleIdentifier'] == 'app.5ln.studio'
           assert info['CFBundleDisplayName'] == '3D MOTION'
-          assert info['CFBundleShortVersionString'] == '24'
+          assert info['CFBundleShortVersionString'] == '1.0'
           document = info['CFBundleDocumentTypes'][0]
           assert document['LSItemContentTypes'] == ['app.5ln.studio.project']
           assert document['CFBundleTypeIconFiles'] == ['ProjectFileIcon.png']

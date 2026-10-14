@@ -77,6 +77,27 @@ jobs:
           assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
           assert (app / properties['CFBundleExecutable']).is_file()
           PY
+      - name: Check viewport stability, materials and initial project switching
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTEST'
+          import os, pathlib, re, subprocess
+          root=pathlib.Path(os.environ['MOTION_PROJECT_FOLDER'])
+          names=re.findall(r'func (test\w+)\(', (root/'Tests/ViewportStabilityTests.swift').read_text())
+          command=['xcodebuild','-project',str(root/'Tests/AppleValidation.xcodeproj'),'-scheme','MotionValidation','-sdk','iphonesimulator',
+                   '-destination','platform=iOS Simulator,id='+os.environ['MOTION_IOS_UDID'],
+                   '-derivedDataPath',os.environ['RUNNER_TEMP']+'/Motion24DerivedData',
+                   '-resultBundlePath',os.environ['RUNNER_TEMP']+'/motion-viewport-tests.xcresult',
+                   '-test-timeouts-enabled','YES','-default-test-execution-time-allowance','60','-maximum-test-execution-time-allowance','120']
+          command += ['-only-testing:MotionValidationTests/ScenePersistenceTests/'+name for name in names]
+          command += ['CODE_SIGNING_ALLOWED=YES','CODE_SIGN_IDENTITY=-','test-without-building']
+          with open(os.environ['RUNNER_TEMP']+'/motion-viewport-tests.log','w') as log:
+              process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+              for line in process.stdout:
+                  print(line,end='',flush=True);log.write(line)
+              raise SystemExit(process.wait())
+          PYTEST
       - name: Check workshop modeling, fonts, materials and rigged animation
         shell: bash
         run: |
