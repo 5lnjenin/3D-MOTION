@@ -1,0 +1,109 @@
+name: Viewport preview
+
+on:
+  push:
+    paths:
+      - '24.zip'
+      - '.github/workflows/viewport-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select Xcode 16.4 for the supported Swift runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d /Applications/Xcode_16.4.app/Contents/Developer
+          sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+          xcodebuild -version
+      - name: Prepare Apple project and select iPad simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -q 24.zip -d "$RUNNER_TEMP/Motion24"
+          export MOTION_PROJECT_FOLDER="$RUNNER_TEMP/Motion24/3DMOTION24.swiftpm"
+          printf 'MOTION_PROJECT_FOLDER=%s\n' "$MOTION_PROJECT_FOLDER" >> "$GITHUB_ENV"
+          python3 "$MOTION_PROJECT_FOLDER/Tests/create_apple_project.py"
+          xcodebuild -version
+          xcrun simctl list devices available --json > "$RUNNER_TEMP/motion-simulators.json"
+          python3 - <<'PY'
+          import json, os
+          with open(os.environ['RUNNER_TEMP'] + '/motion-simulators.json') as source:
+              devices = json.load(source)['devices']
+          candidates = [device for runtime, items in devices.items() if '.iOS-' in runtime
+                        for device in items if device.get('isAvailable') and device['name'].startswith('iPad')]
+          if not candidates:
+              raise SystemExit('No available iPad simulator on this runner')
+          selected = candidates[0]
+          with open(os.environ['GITHUB_ENV'], 'a') as target:
+              target.write('MOTION_IOS_UDID=' + selected['udid'] + '\n')
+          print('Selected simulator:', selected['name'], selected['udid'])
+          PY
+      - name: Boot the selected iPad before cold media tests
+        shell: bash
+        run: xcrun simctl bootstatus "$MOTION_IOS_UDID" -b
+      - name: Build the full app and hosted XCTest target
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -project "$MOTION_PROJECT_FOLDER/Tests/AppleValidation.xcodeproj" \
+            -scheme MotionValidation \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=$MOTION_IOS_UDID" \
+            -derivedDataPath "$RUNNER_TEMP/Motion24DerivedData" \
+            -resultBundlePath "$RUNNER_TEMP/motion-build.xcresult" \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- build-for-testing 2>&1 | tee "$RUNNER_TEMP/motion-build.log"
+      - name: Check the actual simulator app bundle
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, plistlib
+          products = pathlib.Path(os.environ['RUNNER_TEMP']) / 'Motion24DerivedData/Build/Products'
+          app = products / 'Debug-iphonesimulator/MotionValidation.app'
+          info = app / 'Info.plist'
+          if not info.exists():
+              print('::error::Expected simulator app Info.plist is absent; actual product plist files: ' + ', '.join(str(p) for p in products.rglob('Info.plist')))
+              raise SystemExit(1)
+          with info.open('rb') as source:
+              properties = plistlib.load(source)
+          print('::notice::Actual simulator app bundle: ' + str(properties))
+          assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
+          assert (app / properties['CFBundleExecutable']).is_file()
+          PY
+      - name: Check viewport stability, materials and initial project switching
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTEST'
+          import os, pathlib, re, subprocess
+          root=pathlib.Path(os.environ['MOTION_PROJECT_FOLDER'])
+          names=re.findall(r'func (test\w+)\(', (root/'Tests/ViewportStabilityTests.swift').read_text())
+          command=['xcodebuild','-project',str(root/'Tests/AppleValidation.xcodeproj'),'-scheme','MotionValidation','-sdk','iphonesimulator',
+                   '-destination','platform=iOS Simulator,id='+os.environ['MOTION_IOS_UDID'],
+                   '-derivedDataPath',os.environ['RUNNER_TEMP']+'/Motion24DerivedData',
+                   '-resultBundlePath',os.environ['RUNNER_TEMP']+'/motion-viewport-tests.xcresult',
+                   '-test-timeouts-enabled','YES','-default-test-execution-time-allowance','60','-maximum-test-execution-time-allowance','120']
+          command += ['-only-testing:MotionValidationTests/ScenePersistenceTests/'+name for name in names]
+          command += ['CODE_SIGNING_ALLOWED=YES','CODE_SIGN_IDENTITY=-','test-without-building']
+          with open(os.environ['RUNNER_TEMP']+'/motion-viewport-tests.log','w') as log:
+              process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+              for line in process.stdout:
+                  print(line,end='',flush=True);log.write(line)
+              raise SystemExit(process.wait())
+          PYTEST
+      - name: Upload viewport render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: viewport-render-results
+          path: |
+            ${{ runner.temp }}/motion-viewport-tests.log
+            ${{ runner.temp }}/motion-viewport-tests.xcresult
+          if-no-files-found: warn
