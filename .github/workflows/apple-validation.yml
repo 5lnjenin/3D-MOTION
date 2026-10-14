@@ -335,6 +335,7 @@ jobs:
             ${{ runner.temp }}/motion-live-import-tests.log
             ${{ runner.temp }}/motion-audit-tests.log
             ${{ runner.temp }}/motion-workshop-tests.log
+            ${{ runner.temp }}/motion-viewport-tests.log
             ${{ runner.temp }}/motion-signing.log
             ${{ runner.temp }}/motion-build.xcresult
             ${{ runner.temp }}/motion-tests.xcresult
@@ -343,4 +344,5 @@ jobs:
             ${{ runner.temp }}/motion-live-import-tests.xcresult
             ${{ runner.temp }}/motion-audit-tests.xcresult
             ${{ runner.temp }}/motion-workshop-tests.xcresult
+            ${{ runner.temp }}/motion-viewport-tests.xcresult
           if-no-files-found: warn
