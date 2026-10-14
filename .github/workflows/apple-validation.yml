@@ -88,7 +88,8 @@ jobs:
           command=['xcodebuild','-project',str(root/'Tests/AppleValidation.xcodeproj'),'-scheme','MotionValidation','-sdk','iphonesimulator',
                    '-destination','platform=iOS Simulator,id='+os.environ['MOTION_IOS_UDID'],
                    '-derivedDataPath',os.environ['RUNNER_TEMP']+'/Motion24DerivedData',
-                   '-resultBundlePath',os.environ['RUNNER_TEMP']+'/motion-workshop-tests.xcresult']
+                   '-resultBundlePath',os.environ['RUNNER_TEMP']+'/motion-workshop-tests.xcresult',
+                   '-test-timeouts-enabled','YES','-default-test-execution-time-allowance','60','-maximum-test-execution-time-allowance','120']
           command += ['-only-testing:MotionValidationTests/ScenePersistenceTests/'+name for name in names]
           command += ['CODE_SIGNING_ALLOWED=YES','CODE_SIGN_IDENTITY=-','test-without-building']
           with open(os.environ['RUNNER_TEMP']+'/motion-workshop-tests.log','w') as log:
