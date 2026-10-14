@@ -77,6 +77,26 @@ jobs:
           assert properties.get('CFBundleIdentifier') == 'app.5ln.studio.validation'
           assert (app / properties['CFBundleExecutable']).is_file()
           PY
+      - name: Check workshop modeling, fonts, materials and rigged animation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYTEST'
+          import os, pathlib, re, subprocess
+          root=pathlib.Path(os.environ['MOTION_PROJECT_FOLDER'])
+          names=re.findall(r'func (test\w+)\(', (root/'Tests/WorkshopAppleTests.swift').read_text())
+          command=['xcodebuild','-project',str(root/'Tests/AppleValidation.xcodeproj'),'-scheme','MotionValidation','-sdk','iphonesimulator',
+                   '-destination','platform=iOS Simulator,id='+os.environ['MOTION_IOS_UDID'],
+                   '-derivedDataPath',os.environ['RUNNER_TEMP']+'/Motion24DerivedData',
+                   '-resultBundlePath',os.environ['RUNNER_TEMP']+'/motion-workshop-tests.xcresult']
+          command += ['-only-testing:MotionValidationTests/ScenePersistenceTests/'+name for name in names]
+          command += ['CODE_SIGNING_ALLOWED=YES','CODE_SIGN_IDENTITY=-','test-without-building']
+          with open(os.environ['RUNNER_TEMP']+'/motion-workshop-tests.log','w') as log:
+              process=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+              for line in process.stdout:
+                  print(line,end='',flush=True);log.write(line)
+              raise SystemExit(process.wait())
+          PYTEST
       - name: Check imported movie audio and current audit regressions
         shell: bash
         run: |
@@ -172,7 +192,7 @@ jobs:
           print('::notice::Apple toolchain: ' + subprocess.check_output(['xcodebuild', '-version'], text=True).strip().replace('\n', '; '))
           # GitHub limits annotation counts per step. Group all export rows
           # into one notice so every resolution/FPS result stays reviewable.
-          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log')]
+          evidence_paths = [pathlib.Path(os.environ['RUNNER_TEMP']) / name for name in ('motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-workshop-tests.log')]
           if any(path.exists() for path in evidence_paths):
               evidence = '\n'.join(path.read_text(errors='replace') for path in evidence_paths if path.exists())
               rows = list(dict.fromkeys(re.findall(r'EXPORT_MATRIX_(?:PASS|FAIL)[^\n]+', evidence)))
@@ -194,12 +214,12 @@ jobs:
               if failures:
                   print('::error::' + ('All test failures:\n' + '\n'.join(failures)).replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
           seen = set()
-          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-signing.log'):
+          for name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-signing.log', 'motion-workshop-tests.log'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
               log_text = path.read_text(errors='replace')
-              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log') and 'SUCCEEDED **' not in log_text:
+              if name in ('motion-build.log', 'motion-tests.log', 'motion-hdr-tests.log', 'motion-media-tests.log', 'motion-live-import-tests.log', 'motion-audit-tests.log', 'motion-workshop-tests.log') and 'SUCCEEDED **' not in log_text:
                   tail = 'Actual Apple log tail (' + name + '):\n' + log_text[-3500:]
                   print('::error::' + tail.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'))
               for line in log_text.splitlines():
@@ -217,7 +237,7 @@ jobs:
                   escaped = line.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                   print('::' + kind + '::' + escaped)
           import json
-          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult', 'motion-audit-tests.xcresult'):
+          for name in ('motion-build.xcresult', 'motion-tests.xcresult', 'motion-hdr-tests.xcresult', 'motion-media-tests.xcresult', 'motion-live-import-tests.xcresult', 'motion-audit-tests.xcresult', 'motion-workshop-tests.xcresult'):
               path = pathlib.Path(os.environ['RUNNER_TEMP']) / name
               if not path.exists():
                   continue
@@ -292,6 +312,7 @@ jobs:
             ${{ runner.temp }}/motion-media-tests.log
             ${{ runner.temp }}/motion-live-import-tests.log
             ${{ runner.temp }}/motion-audit-tests.log
+            ${{ runner.temp }}/motion-workshop-tests.log
             ${{ runner.temp }}/motion-signing.log
             ${{ runner.temp }}/motion-build.xcresult
             ${{ runner.temp }}/motion-tests.xcresult
@@ -299,4 +320,5 @@ jobs:
             ${{ runner.temp }}/motion-media-tests.xcresult
             ${{ runner.temp }}/motion-live-import-tests.xcresult
             ${{ runner.temp }}/motion-audit-tests.xcresult
+            ${{ runner.temp }}/motion-workshop-tests.xcresult
           if-no-files-found: warn
